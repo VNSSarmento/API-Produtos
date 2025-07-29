@@ -1,9 +1,18 @@
 <?php
 
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Model;
 
-class Produto extends Model {
+class Produto extends Model
+{
+    protected $table = 'produtos';
 
-} 
-
+    protected $fillable = [
+        'titulo',
+        'descricao',
+        'preco',
+        'fabricante',
+        'dt_criacao'
+    ];
+}

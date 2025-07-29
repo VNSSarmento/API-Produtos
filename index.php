@@ -16,20 +16,13 @@ $app = AppFactory::create();
 
 require __DIR__.'/src/routes.php';
 
-//$app->addBodyParsingMiddleware();  // Posso usar isso no lugar da função de $app->add();
+$app->addBodyParsingMiddleware();  // Posso usar isso no lugar da função de $app->add();
 $app->addRoutingMiddleware();
-$app->addErrorMiddleware(true, true, true);
+$app->addErrorMiddleware(true, true, true); 
 
-$app->get('/user', function(Request $request, Response $response) {
-    $data = [
-        'usuario' => 'Vinicius',
-        'email' => 'vinicius@gmail.com',
-        'sexo' => 'masculino'
-    ];
-    
-    $response->getBody()->write(json_encode($data));
-    return $response->withHeader('Content-Type', 'application/json')
-                    ->withStatus(200);
-});
+$container->get('db');//isso aqui faz a conecxão com o banco de dados pq eu declarei no meu container $container->set('db',$capsule);
 
 $app->run();
+
+//parei depois que fiz a conecxão com o banco de dados usando o $container->get('db')
+//e eantes disso que fiz o $produto = Produto::get() isso faz com que de um select em tudo
