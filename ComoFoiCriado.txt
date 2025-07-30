@@ -1,0 +1,271 @@
+primeiro coloca as bibliotecas no index
+---- no arquivo index ----
+    use DI\Container;
+    use Slim\Factory\AppFactory;
+    use Psr\Http\Message\ResponseInterface as Response;
+    use Psr\Http\Message\ServerRequestInterface as Request;
+
+coloca agora o autoload
+
+    require __DIR__.'/src/autoload';
+
+como estamos trabalhando com o Illuminate vamos criar uma pasta com config para configurar o banco a conecxão.
+
+Na pasta config criamos o arquivo chamado database.php e agora vamos criar a configuração do banco de dados.
+
+//SOBRE O ARQUIVO DATABASE.PHP
+
+adiciona a biblioteca do Illuminate.
+----Arquivo Config----
+
+    use Illuminate\Database\Capsule\Manage as Capsule;
+
+    $capsule = new Capsule();
+
+o objeto $capsule agora é responsavel por as funções do Illuminate para banco de dados.
+
+função de conecxão ao banco:
+    "addConction: função para conetar o banco de dados"
+
+    $capsule->addConnection([
+        'driver'    => 'mysql',
+        'host'      => 'localhost',
+        'database'  => 'slim',
+        'username'  => 'root',
+        'password'  => '',
+        'charset'   => 'utf8',
+        'collation' => 'utf8_unicode_ci',
+        'prefix'    => '',
+    ]);
+
+Precisamos agora chamar as função nativas para o funcionamento da conecxão:
+
+    $capsule->setAsGlobal();
+    $capsule->bootEloquent();
+
+    a função $capsule->setAsGlobal() Essa função torna a instância do Capsule acessível globalmente, ou seja, permite que você use métodos estáticos mesmo fora do Laravel.
+
+    e a função $capsule->bootEloquent() inicializa o Eloquent ORM, permitindo que você use os modelos Eloquent;
+
+E no fim precisamos retornar o $capsule
+
+    return $capsule
+
+Em resumo nossa pasta de config fica assimm
+
+----arquivo Config----
+
+        <?php
+
+        use Illuminate\Database\Capsule\Manager as Capsule;
+
+        $capsule = new Capsule;
+
+        $capsule->addConnection([
+            'driver'    => 'mysql',
+            'host'      => 'localhost',
+            'database'  => 'slim',
+            'username'  => 'root',
+            'password'  => '',
+            'charset'   => 'utf8',
+            'collation' => 'utf8_unicode_ci',
+            'prefix'    => '',
+        ]);
+
+        $capsule->setAsGlobal();
+        $capsule->bootEloquent();
+
+        return $capsule;
+
+-----------------------------
+
+agora voltamos para o index.
+
+precisamos criar o Container para armazenar as dependencias que vamos criar, no caso vamos utilizar a injeção de conecxão do banco no container.
+
+    $container = new Container();
+    AppFactory::setcontainer($container) --> essa chamada define o container a ser usado pela AppFactory
+
+logo depois vamos chamar os a instância de conecxão que criamos.
+
+    $capsule = $capsule = require __DIR__.'/config/database.php';
+
+e com o container vamos setar a conecxão de banco dando o nome de 'db' para quando precisar chamar essa função, a gente chamar o container.
+
+    $container->set('db', $capsule);
+
+agora vamos montar o arquivo index:
+
+----ARQUIVO INDEX----
+
+        <?php
+
+        use DI\Container;
+        use Slim\Factory\AppFactory;
+        use Psr\Http\Message\ResponseInterface as Response;
+        use Psr\Http\Message\ServerRequestInterface as Request;
+
+        require __DIR__.'/vendor/autoload.php';
+
+        $container = new Container();
+        $container->set('db',$capsule);
+        AppFactory::setContainer($container);
+
+        $capsule = require __DIR__.'/config/database.php';
+
+        $app = AppFactory::create();
+
+        require __DIR__.'/src/routes.php';
+
+        $app->addBodyParsingMiddleware(); 
+        $app->addRoutingMiddleware();
+        $app->addErrorMiddleware(true, true, true); 
+
+        $container->get('db');
+
+        $app->run();
+        
+        
+        require __DIR__.'/src/routes.php'; Aquivo de rotas do API
+        $app->addBodyParsingMiddleware(); Usamos isso para nao precisar criar a rota customizada do SLim pq essan chamada já faz isso. 
+        $container->get('db'); Aqui é a chamada de coneção ao banco de dados.
+-----------------------------
+
+Agora vamos para o arquivo Model da API
+
+o arquivo model vai ficar dentro da pasta App/Model/arquivo.php no arquivo vai ter a Classe responsavel por criar o objeto que vai ser armazenado no banco de dados;
+
+Vamos dar o nameespace de App\Models
+
+e vamos precisar alterar o Composer.json para chamar sempre nosso Model produto
+então no arquivo produto.php vamos ter:
+
+----ARQUIVO PRODUTO.PHP----
+    nossa classe vai estender o Model do eloquent para herdamos os atributos e metodos padroes para ser utilizado.
+
+        namespace App\Models;
+
+        use Illuminate\Database\Eloquent\Model;
+
+        class Produto extends Model
+        {
+            protected $table = 'produtos';
+
+            protected $fillable = [
+                'titulo',
+                'descricao',
+                'preco',
+                'fabricante',
+                'dt_criacao'
+            ];
+        }
+
+precisamos fazer isso aqui no nosso composer.json
+
+    "autoload": {
+        "psr-4": {
+            "App\\": "App/"
+        }
+    }
+
+Logo depos vamos criar uma pasta chamada src que vai conter o arquivo de rotas e o arquivo de segurança routes que vai armazenar a rota do arquivo de rotas;
+
+na pasta src vamos criar um arquivo chamado routes.php e uma pasta com o nome routes.
+na pasta routes vamos criar um arquivo chamado produtos.php
+
+----ARQUIVO PRODUTOS----
+
+    Como estamos montando um grupo de rotas ou seja de endpoints, iniciamos a função assim "$app->group()" pq vamos versionar nossa API.
+   
+    Utilizamos na função anonima a variavel $group pq no lugar de fazermos $app->get() a gente utilizar o $group->get()
+
+        use Psr\Http\Message\ResponseInterface as Response;
+        use Psr\Http\Message\ServerRequestInterface as Request;
+        use App\Models\Produto;
+
+
+        $app->group('/api/v1',function ($group) {
+                //lista todos os produtos
+                $group->get('/produtos/listar', function (Request $resquest, Response $response) {
+                    $produto = Produto::get(); //isso faz um select * from produtos.
+
+                    $response->getBody()->write(json_encode($produto));
+                    return $response->withHeader('Content-Type', 'application/json')
+                        ->withStatus(200);
+                });
+                //adiciona todos os produtos
+                $group->post('/produtos/adicionar', function (Request $request, Response $response) {
+                    $dados = $request->getParsedBody();
+                    $produto = Produto::create($dados); //isso faz um insert into
+
+                    $response->getBody()->write(json_encode($produto));
+                    return $response->withHeader('Content-Type', 'application/json')
+                        ->withStatus(200);
+                });
+                //busca produto por ID
+                $group->get('/produto/listar/{id}',function (Request $request, Response $response,$args){
+                    $id = $args['id'];
+                    $produto = Produto::findOrFail($id);
+                    $response->getBody()->write(json_encode($produto));
+
+                    return $response->withHeader('Content-Type','application/json')
+                                    ->withStatus(200);
+                });
+                //atualiza produto
+                $group->put('/produto/atualizar/{id}',function (Request $request, Response $response,$args){
+                    $id = $args['id'];
+                    $dados = $request->getParsedBody();
+
+                    $produto = Produto::findOrFail($id);
+                    $produto->update($dados);
+                    $response->getBody()->write(json_encode($produto));
+
+                    return $response->withHeader('Content-Type','application/json')
+                                    ->withStatus(200);
+                });
+
+                $group->delete('/produto/remover/{id}',function (Request $request, Response $response,$args){
+                    $id = $args['id'];
+                    $produto = Produto::findOrFail($id);
+                    $produto->delete();
+                    return $response->withStatus(204);
+                });
+
+            }
+        );
+
+
+
+    Essa chamada faz umm select * from no caso Produto::get() é uma função do eloquent
+    $produto = Produto::get(); //isso faz um select * from produtos.
+
+---- ARQUIVO DB.PHP ----
+
+no db.php tem as funções dp SQL que cria o banco de dados entao nada demais.
+
+        <?php
+        require __DIR__.'/vendor/autoload.php';
+
+        $capsule = require __DIR__.'/config/database.php';
+
+        $schema = $capsule->schema();
+        $tabela = 'produtos';
+
+        $schema->dropIfExists($tabela);
+
+        $schema->create($tabela,function($table){
+                $table->increments('id');
+                $table->string('titulo','50');
+                $table->text('descricao');
+                $table->decimal('preco',11,2);
+                $table->string('fabricante',60);
+                $table->timestamps();
+        });
+
+        /* $capsule->table($tabela)->insert([
+            'titulo' => 'Celular',
+            'descricao' => 'Celular Sansung novo',
+            'preco' => 1200.4,
+            'fabricante' => 'Samsung',
+            'dt_criacao' => '2025-03-13' 
+        ]); */

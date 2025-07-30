@@ -12,7 +12,6 @@ class Produto extends Model
         'titulo',
         'descricao',
         'preco',
-        'fabricante',
-        'dt_criacao'
+        'fabricante'
     ];
 }
